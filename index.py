@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 import plotly.express as px
-
+import plotly.graph_objects as go
 
 def convertFrequencyToMonth(frequence, salary):
     if frequence == 'Yearly':
@@ -16,7 +15,6 @@ def convertFrequencyToMonth(frequence, salary):
         return salary    
     else:
       return None
-
 
 schema = pd.read_csv('survey_results_schema.csv')   
 dados = pd.read_csv('survey_results_public.csv')
@@ -100,6 +98,7 @@ percent = (qtd / total) * 100
 percent = percent.map(lambda n: '{0:.2f}%'.format(n))
 percent
 
+
 st.subheader(""" 5 - C - Qual o tamanho das empresas de pessoas que trabalham profissionalmente?""") 
 selecao = (
     (dados['MainBranch'] == 'I am a developer by profession')
@@ -116,22 +115,17 @@ st.markdown("""---""")
 
 st.header(""" 6 - Média salarial das pessoas que responderam?""") 
     
-currency = pd.DataFrame(dados['Currency'].dropna())
-currency = pd.DataFrame(currency.drop_duplicates())
-currency
-df_sal = [] 
+countrys = dados['Country'].value_counts()
+selecao = np.where((dados.Country.isin(countrys.index)),True, False)
+df3 = dados[selecao]
+df_filtrado = df3[['Country', 'CompTotal', 'CompFreq', 'Currency']]
+df_filtrado.dropna(inplace=True)
+df = df_filtrado[(np.abs(stats.zscore(df_filtrado['CompTotal'])) < 3)] 
+df_filtrado = df.sort_values(by='Country').reset_index(drop=True)
 
-for index, row in currency.iterrows():
-    print(row['Currency'].index)
-    df_mean_salary = dados.loc[dados['Currency'].index == row['Currency']][['CompFreq', 'CompTotal']].dropna() #Obtem apenas salários em dólar
-    df_mean_salary = df_mean_salary[(np.abs(stats.zscore(df_mean_salary['CompTotal'])) < 3)] # Remove valor extremo
-    df_mean_salary_year = df_mean_salary.loc[df_mean_salary['CompFreq'] == 'Yearly']['CompTotal'].divide(12) #Transforma salário anual para valor mensal
-    df_mean_salary_week = df_mean_salary.loc[df_mean_salary['CompFreq'] == 'Weekly']['CompTotal'].mul(4) #Transforma salário semanal para valor mensal
-    df_mean_salary_month = df_mean_salary.loc[df_mean_salary['CompFreq'] == 'Monthly']['CompTotal']
-    df_mean_salary = pd.concat([df_mean_salary_year, df_mean_salary_week, df_mean_salary_month])
-    #st.write("O salário médio mensal dos que ganham em "+str(row['Currency'])+" é $" + str(round(df_mean_salary.mean(), 2)))
-    df_sal.append([row['Currency'], (round(df_mean_salary.mean(), 2))])
-df_sal
+df_res = df_filtrado.groupby(['Country', 'Currency', 'CompFreq'])['CompTotal'].mean().reset_index()
+df_res['CompTotal'] = round(df_res['CompTotal'], 2)
+df_res
 
 st.markdown("""---""")
 
@@ -142,9 +136,13 @@ selecao = np.where((dados.Country.isin(countrys.index)),True, False)
 df3 = dados[selecao]
 df_filtrado = df3[['Country', 'CompTotal', 'CompFreq', 'Currency']]
 df_filtrado.dropna(inplace=True)
-df = df_filtrado[(np.abs(stats.zscore(df_filtrado['CompTotal'])) < 3)] # Remove valor extremo
-df_filtrado = df_filtrado.sort_values(by='Country').reset_index(drop=True)
-df_filtrado
+df = df_filtrado[(np.abs(stats.zscore(df_filtrado['CompTotal'])) < 3)] 
+df_filtrado = df.sort_values(by='Country').reset_index(drop=True)
+
+df_res = df_filtrado.groupby(['Country', 'Currency', 'CompFreq'])['CompTotal'].mean().reset_index()
+df_res['CompTotal'] = round(df_res['CompTotal'], 2)
+df_res
+
 st.markdown("""---""")
 
 
@@ -170,7 +168,7 @@ st.write("A média salarial em USD é $" + str(round(df_comp_total_converted.mea
 
 
 st.subheader(""" 9 - B - Para o Brasil, qual o nível salarial? """) 
-df_python = df_survey[['LanguageHaveWorkedWith', 'CompFreq', 'CompTotal', 'Country', 'Currency']].dropna()
+df_python = dados[['LanguageHaveWorkedWith', 'CompFreq', 'CompTotal', 'Country', 'Currency']].dropna()
 df_python = df_python[df_python['LanguageHaveWorkedWith'].str.contains('Python')]
 df_python = df_python[df_python['Country'] == 'Brazil']
 df_python = df_python[df_python['Currency'] == 'BRL\tBrazilian real']
@@ -234,13 +232,17 @@ total = len(dados['OpSys'])
 percent = (qtd / total) * 100
 percent = percent.map(lambda n: '{0:.2f}%'.format(n))
 percent
+
 st.markdown("""---""")
 
 
 st.header(""" 12 - Qual a média de idade das pessoas que responderam? """) 
 df_age = dados[['Age']]
-result = df_age.value_counts()
-result
+df = df_age.value_counts().rename_axis('Idades').reset_index(name='Totais')
+
+fig = go.Figure(data=[go.Pie(labels=df['Idades'], values=df['Totais'], pull=[0, 0, 0.2, 0])])
+st.plotly_chart(fig, use_container_width=True)
+
 st.markdown("""---""")
 
 
@@ -249,5 +251,8 @@ df_python = dados[['LanguageHaveWorkedWith','Age']].dropna()
 df_python = df_python[df_python['LanguageHaveWorkedWith'].str.contains('Python')]
 
 df_age = df_python[['Age']]
-result = df_age.value_counts()
-result
+df = df_age.value_counts().rename_axis('Idades').reset_index(name='Totais')
+df
+
+fig = px.bar(df, x='Idades', y='Totais')
+st.plotly_chart(fig, use_container_width=True)
